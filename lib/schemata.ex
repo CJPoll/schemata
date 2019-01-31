@@ -1,4 +1,4 @@
-defmodule Schemata.Schema.Compile do
+defmodule Schemata.Compile do
   @moduledoc false
   def names(list) do
     Enum.map(list, fn
@@ -115,13 +115,13 @@ defmodule Schemata.Schema.Compile do
     quote do
       Ecto.Schema.embedded_schema(do: unquote(ast))
 
-      use Schemata.PreQual.CreditCards.Amex.Renderable,
+      use Schemata.Renderable,
         embeds: unquote(all_embed_names)
 
       def changeset(data, params) do
         import Ecto.Changeset
 
-        params = Schemata.Schema.Params.resolve_aliases(params, unquote(aliases))
+        params = Schemata.Params.resolve_aliases(params, unquote(aliases))
 
         cs =
           data
@@ -177,6 +177,9 @@ defmodule Schemata do
     required = Keyword.get(opts, :required, false)
 
     if alias = Keyword.get(opts, :alias, nil) do
+      unless is_atom(alias) do
+        raise "alias #{inspect alias} for field #{inspect name} of #{inspect module} must be an atom, not a string"
+      end
       Module.put_attribute(module, :alias, [alias, name])
     end
 
@@ -245,7 +248,7 @@ defmodule Schemata do
   end
 end
 
-defmodule Schemata.Schema.Params do
+defmodule Schemata.Params do
   @moduledoc false
   def resolve_aliases(params, aliases) when is_list(aliases) do
     aliases =
