@@ -317,18 +317,24 @@ defmodule Schemata.Params do
     resolve_aliases(params, aliases)
   end
 
+  defp rename_key(map, old, new) do
+    map
+    |> Map.update(new, map[old], fn(_) -> map[old] end)
+    |> Map.delete(old)
+  end
+
   def resolve_aliases(params, aliases) when is_map(aliases) do
-    params
-    |> Enum.map(fn({k, v} = kv) ->
+    Enum.reduce(aliases, params, fn({alias, name}, acc) ->
       cond do
-        Map.has_key?(aliases, k) ->
-          {aliases[k], v}
-        Map.has_key?(aliases, Atom.to_string(k)) ->
-          {aliases[Atom.to_string(k)], v}
+        Map.has_key?(acc, alias) ->
+          rename_key(acc, alias, name)
+
+        Map.has_key?(acc, str = Atom.to_string(alias)) ->
+          rename_key(acc, str, Atom.to_string(name))
+
         true ->
-          kv
+          acc
       end
     end)
-    |> Map.new
   end
 end
