@@ -29,6 +29,8 @@ defmodule Schemata.Compile do
     required_embeds_many = accumulated_attribute(module, :required_embeds_many)
     aliases = accumulated_attribute(module, :alias)
 
+    table = Module.get_attribute(module, :table, nil)
+
     required_names = names(required)
     names = names(fields) ++ names(required)
 
@@ -112,8 +114,19 @@ defmodule Schemata.Compile do
           end
       end
 
+      schema =
+        if table do
+          quote do
+            Ecto.Schema.schema(unquote(table), do: unquote(ast))
+          end
+        else
+          quote do
+            Ecto.Schema.embedded_schema(do: unquote(ast))
+          end
+        end
+
     quote do
-      Ecto.Schema.embedded_schema(do: unquote(ast))
+      unquote(schema)
 
       use Schemata.Renderable,
         embeds: unquote(all_embed_names)
@@ -136,6 +149,26 @@ defmodule Schemata.Compile do
       unquote(initial)
 
       def new, do: %__MODULE__{}
+      @type t :: %__MODULE__{}
+      @type field :: atom
+      @type error_message :: String.t
+      @spec from_map(map) :: {:ok, t} | {:error, %{field => [error_message]}}
+      def from_map(map) do
+        cs = __MODULE__.changeset(__MODULE__.new(), map)
+
+        if cs.valid? do
+          {:ok, Ecto.Changeset.apply_changes(cs)}
+        else
+          errs =
+            Ecto.Changeset.traverse_errors(cs, fn {msg, opts} ->
+              Enum.reduce(opts, msg, fn {key, value}, acc ->
+                String.replace(acc, "%{#{key}}", to_string(value))
+              end)
+            end)
+
+          {:error, errs}
+        end
+      end
     end
   end
 end
@@ -152,6 +185,9 @@ defmodule Schemata do
       {:defschema, meta, [{:__aliases__, meta, right}, [do: block]]} ->
         {:defschema, meta, [{:__aliases__, meta, Enum.concat(left, right)}, [do: block]]}
 
+      {:defschema, meta, [{:__aliases__, meta, right}, [table: table], [do: block]]} ->
+        {:defschema, meta, [{:__aliases__, meta, Enum.concat(left, right)}, [table: table], [do: block]]}
+
       {:namespaced, _, [{:__aliases__, meta, right}]} ->
         {:__aliases__, meta, Enum.concat(left, right)}
 
@@ -160,6 +196,14 @@ defmodule Schemata do
     end)
   end
 
+  defmacro deffields(table, do: block) do
+    IO.inspect("Putting #{table} in #{__CALLER__.module}")
+    Module.put_attribute(__CALLER__.module, :table, table)
+
+    quote do
+      unquote(__MODULE__).deffields(do: unquote(block))
+    end
+  end
   defmacro deffields(do: block) do
     Module.register_attribute(__CALLER__.module, :fields, accumulate: true)
     Module.register_attribute(__CALLER__.module, :required, accumulate: true)
@@ -234,15 +278,26 @@ defmodule Schemata do
     |> Keyword.delete(:alias)
   end
 
-  defmacro defschema(module, do: block) do
-    quote do
-      defmodule unquote(module) do
-        use Ecto.Schema
-        import Ecto.Changeset
+  defmacro defschema(module, opts \\ [], [do: block]) do
+    if table = Keyword.get(opts, :table, false) do
+      quote do
+        defmodule unquote(module) do
+          use Ecto.Schema
+          import Ecto.Changeset
 
-        @primary_key false
+          unquote(__MODULE__).deffields(unquote(table), do: unquote(block))
+        end
+      end
+    else
+      quote do
+        defmodule unquote(module) do
+          use Ecto.Schema
+          import Ecto.Changeset
 
-        unquote(__MODULE__).deffields(do: unquote(block))
+          @primary_key false
+
+          unquote(__MODULE__).deffields(do: unquote(block))
+        end
       end
     end
   end

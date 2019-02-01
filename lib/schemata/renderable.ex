@@ -15,6 +15,7 @@ defmodule Schemata.Renderable do
   def to_map(renderable) do
     renderable
     |> Map.from_struct
+    |> Map.delete(:__meta__)
     |> Enum.map(fn({k, v} = e) ->
         if k in renderable.__struct__.__embeds__() do
           {k, unquote(__MODULE__).to_map(v)}
