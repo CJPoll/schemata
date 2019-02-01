@@ -317,12 +317,6 @@ defmodule Schemata.Params do
     resolve_aliases(params, aliases)
   end
 
-  defp rename_key(map, old, new) do
-    map
-    |> Map.update(new, map[old], fn(_) -> map[old] end)
-    |> Map.delete(old)
-  end
-
   def resolve_aliases(params, aliases) when is_map(aliases) do
     Enum.reduce(aliases, params, fn({alias, name}, acc) ->
       cond do
@@ -336,5 +330,11 @@ defmodule Schemata.Params do
           acc
       end
     end)
+  end
+
+  defp rename_key(map, old, new) do
+    map
+    |> Map.update(new, map[old], fn(_) -> map[old] end)
+    |> Map.delete(old)
   end
 end
