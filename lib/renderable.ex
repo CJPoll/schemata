@@ -9,9 +9,8 @@ defmodule Schemata.Renderable do
     end
   end
 
-  def to_map(renderables) when is_list(renderables) do
-    Enum.map(renderables, &to_map/1)
-  end
+  def to_map(nil), do: nil
+  def to_map(renderables) when is_list(renderables), do: Enum.map(renderables, &to_map/1)
   def to_map(renderable) do
     renderable
     |> Map.from_struct
