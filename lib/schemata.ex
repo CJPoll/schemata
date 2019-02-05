@@ -248,7 +248,7 @@ defmodule Schemata do
         {:defschema, meta, [{:__aliases__, meta, Enum.concat(left, right)}, [table: table], [do: block]]}
 
       {:defmodule, meta, [{:__aliases__, meta, right}, [do: block]]} ->
-        {:defschema, meta, [{:__aliases__, meta, Enum.concat(left, right)}, [table: table], [do: block]]}
+        {:defschema, meta, [{:__aliases__, meta, Enum.concat(left, right)}, [do: block]]}
 
       {:namespaced, _, [{:__aliases__, meta, right}]} ->
         {:__aliases__, meta, Enum.concat(left, right)}
