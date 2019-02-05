@@ -23,72 +23,111 @@ defmodule Schemata.Compile do
   def do_compile(module, initial) do
     fields = accumulated_attribute(module, :fields)
     required = accumulated_attribute(module, :required)
-    embeds_one = accumulated_attribute(module, :embeds_one)
-    required_embeds_one = accumulated_attribute(module, :required_embeds_one)
-    embeds_many = accumulated_attribute(module, :embeds_many)
-    required_embeds_many = accumulated_attribute(module, :required_embeds_many)
+    has_one = accumulated_attribute(module, :has_one)
+    required_has_one = accumulated_attribute(module, :required_has_one)
+    has_many = accumulated_attribute(module, :has_many)
+    required_has_many = accumulated_attribute(module, :required_has_many)
     aliases = accumulated_attribute(module, :alias)
+    belongs_to = accumulated_attribute(module, :belongs_to)
 
     table = Module.get_attribute(module, :table, nil)
 
     required_names = names(required)
     names = names(fields) ++ names(required)
 
-    required_embeds_one_names = names(required_embeds_one)
-    embeds_one_names = names(embeds_one) ++ names(required_embeds_one)
+    required_has_one_names = names(required_has_one)
+    has_one_names = names(has_one) ++ names(required_has_one)
 
-    required_embeds_many_names = names(required_embeds_many)
-    embeds_many_names = names(embeds_many) ++ names(required_embeds_many)
+    required_has_many_names = names(required_has_many)
+    has_many_names = names(has_many) ++ names(required_has_many)
 
     ast =
-      Enum.map(fields ++ required, fn
+      Enum.map(belongs_to, fn
         [name, type] ->
           quote do
-            Ecto.Schema.field(unquote(name), unquote(type))
+            Ecto.Schema.belongs_to(unquote(name), unquote(type))
           end
 
         [name, type, opts] ->
           quote do
-            Ecto.Schema.field(unquote(name), unquote(type), unquote(opts))
+            Ecto.Schema.belongs_to(unquote(name), unquote(type), unquote(opts))
           end
 
         _ ->
           []
       end) ++
-        Enum.map(embeds_one ++ required_embeds_one, fn
+        Enum.map(fields ++ required, fn
           [name, type] ->
             quote do
-              Ecto.Schema.embeds_one(unquote(name), unquote(type))
+              Ecto.Schema.field(unquote(name), unquote(type))
             end
 
           [name, type, opts] ->
-            opts = Keyword.delete(opts, :required)
-
             quote do
-              Ecto.Schema.embeds_one(unquote(name), unquote(type), unquote(opts))
+              Ecto.Schema.field(unquote(name), unquote(type), unquote(opts))
             end
 
           _ ->
             []
         end) ++
-        Enum.map(embeds_many ++ required_embeds_many, fn
+        Enum.map(has_one ++ required_has_one, fn
           [name, type] ->
-            quote do
-              Ecto.Schema.embeds_many(unquote(name), unquote(type))
+            if table do
+              quote do
+                Ecto.Schema.has_one(unquote(name), unquote(type))
+              end
+            else
+              quote do
+                Ecto.Schema.embeds_one(unquote(name), unquote(type))
+              end
             end
 
           [name, type, opts] ->
             opts = Keyword.delete(opts, :required)
 
-            quote do
-              Ecto.Schema.embeds_many(unquote(name), unquote(type), unquote(opts))
+            if table do
+              quote do
+                Ecto.Schema.has_one(unquote(name), unquote(type), unquote(opts))
+              end
+            else
+              quote do
+                Ecto.Schema.embeds_one(unquote(name), unquote(type), unquote(opts))
+              end
+            end
+
+          _ ->
+            []
+        end) ++
+        Enum.map(has_many ++ required_has_many, fn
+          [name, type] ->
+            if table do
+              quote do
+                Ecto.Schema.has_many(unquote(name), unquote(type))
+              end
+            else
+              quote do
+                Ecto.Schema.embeds_many(unquote(name), unquote(type))
+              end
+            end
+
+          [name, type, opts] ->
+            opts = Keyword.delete(opts, :required)
+
+            if table do
+              quote do
+                Ecto.Schema.has_many(unquote(name), unquote(type), unquote(opts))
+              end
+            else
+              quote do
+                Ecto.Schema.embeds_many(unquote(name), unquote(type), unquote(opts))
+              end
             end
         end)
 
-    required_embed_names = required_embeds_one_names ++ required_embeds_many_names
-    all_embed_names = embeds_one_names ++ embeds_many_names
+    required_embed_names = required_has_one_names ++ required_has_many_names
+    all_embed_names = has_one_names ++ has_many_names
 
-    cast_embeds_ast =
+    cast_has_ast =
       cond do
         all_embed_names == [] ->
           quote do
@@ -96,21 +135,41 @@ defmodule Schemata.Compile do
           end
 
         required_embed_names == [] ->
-          quote do
-            Enum.reduce(unquote(all_embed_names), cs, fn name, cs ->
-              cast_embed(cs, name)
-            end)
+          if table do
+            quote do
+              Enum.reduce(unquote(all_embed_names), cs, fn name, cs ->
+                cast_assoc(cs, name)
+              end)
+            end
+          else
+            quote do
+              Enum.reduce(unquote(all_embed_names), cs, fn name, cs ->
+                cast_embed(cs, name)
+              end)
+            end
           end
 
         true ->
-          quote do
-            Enum.reduce(unquote(all_embed_names), cs, fn
-              name, cs when name in unquote(required_embed_names) ->
-                cast_embed(cs, name, required: true)
+          if table do
+            quote do
+              Enum.reduce(unquote(all_embed_names), cs, fn
+                name, cs when name in unquote(required_embed_names) ->
+                  cast_assoc(cs, name, required: true)
 
-              name, cs ->
-                cast_embed(cs, name)
-            end)
+                name, cs ->
+                  cast_assoc(cs, name)
+              end)
+            end
+          else
+            quote do
+              Enum.reduce(unquote(all_embed_names), cs, fn
+                name, cs when name in unquote(required_embed_names) ->
+                  cast_embed(cs, name, required: true)
+
+                name, cs ->
+                  cast_embed(cs, name)
+              end)
+            end
           end
       end
 
@@ -129,7 +188,7 @@ defmodule Schemata.Compile do
       unquote(schema)
 
       use Schemata.Renderable,
-        embeds: unquote(all_embed_names)
+        has: unquote(all_embed_names)
 
       def changeset(data, params) do
         import Ecto.Changeset
@@ -141,7 +200,7 @@ defmodule Schemata.Compile do
           |> cast(params, unquote(names))
           |> validate_required(unquote(required_names))
 
-        unquote(cast_embeds_ast)
+        unquote(cast_has_ast)
       end
 
       defoverridable [changeset: 2]
@@ -188,6 +247,9 @@ defmodule Schemata do
       {:defschema, meta, [{:__aliases__, meta, right}, [table: table], [do: block]]} ->
         {:defschema, meta, [{:__aliases__, meta, Enum.concat(left, right)}, [table: table], [do: block]]}
 
+      {:defmodule, meta, [{:__aliases__, meta, right}, [do: block]]} ->
+        {:defschema, meta, [{:__aliases__, meta, Enum.concat(left, right)}, [table: table], [do: block]]}
+
       {:namespaced, _, [{:__aliases__, meta, right}]} ->
         {:__aliases__, meta, Enum.concat(left, right)}
 
@@ -197,7 +259,6 @@ defmodule Schemata do
   end
 
   defmacro deffields(table, do: block) do
-    IO.inspect("Putting #{table} in #{__CALLER__.module}")
     Module.put_attribute(__CALLER__.module, :table, table)
 
     quote do
@@ -207,11 +268,12 @@ defmodule Schemata do
   defmacro deffields(do: block) do
     Module.register_attribute(__CALLER__.module, :fields, accumulate: true)
     Module.register_attribute(__CALLER__.module, :required, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :embeds_one, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :required_embeds_one, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :embeds_many, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :required_embeds_many, accumulate: true)
+    Module.register_attribute(__CALLER__.module, :has_one, accumulate: true)
+    Module.register_attribute(__CALLER__.module, :required_has_one, accumulate: true)
+    Module.register_attribute(__CALLER__.module, :has_many, accumulate: true)
+    Module.register_attribute(__CALLER__.module, :required_has_many, accumulate: true)
     Module.register_attribute(__CALLER__.module, :aliases, accumulate: true)
+    Module.register_attribute(__CALLER__.module, :belongs_to, accumulate: true)
 
     {ast, _} = Macro.prewalk(block, __CALLER__.module, &handle_node/2)
     __MODULE__.Compile.do_compile(__CALLER__.module, ast)
@@ -247,7 +309,7 @@ defmodule Schemata do
   end
 
   def handle_node({embed, _meta, [name, type, opts]}, module)
-      when embed in [:embeds_one, :embeds_many] and is_list(opts) do
+      when embed in [:has_one, :has_many] and is_list(opts) do
     if alias = Keyword.get(opts, :alias, nil) do
       Module.put_attribute(module, :alias, [alias, name])
     end
@@ -265,9 +327,24 @@ defmodule Schemata do
     {nil, module}
   end
 
-  def handle_node({embed, _meta, args}, module) when embed in [:embeds_one, :embeds_many] do
+  def handle_node({embed, _meta, args}, module) when embed in [:has_one, :has_many] do
     Module.put_attribute(module, embed, args)
     {nil, module}
+  end
+
+  def handle_node({:belongs_to, meta, [name, queryable]}, module) do
+    handle_node({:belongs_to, meta, [name, queryable, []]}, module)
+  end
+
+  def handle_node({:belongs_to, _meta, args}, module) do
+    table = Module.get_attribute(module, :table, nil)
+
+    if table do
+      Module.put_attribute(module, :belongs_to, args)
+      {nil, module}
+    else
+      raise "#{inspect module} has defined a belongs_to association, but is an embedded_schema."
+    end
   end
 
   def handle_node(node, module), do: {node, module}
