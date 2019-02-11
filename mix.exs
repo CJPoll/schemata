@@ -21,7 +21,7 @@ defmodule Schemata.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ecto, "~> 2.0"}
+      {:ecto, "~> 2.0 or ~> 3.0"}
     ]
   end
 end

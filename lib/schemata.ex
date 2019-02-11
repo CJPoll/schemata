@@ -188,7 +188,7 @@ defmodule Schemata.Compile do
       unquote(schema)
 
       use Schemata.Renderable,
-        has: unquote(all_embed_names)
+        embeds: unquote(all_embed_names)
 
       def changeset(data, params) do
         import Ecto.Changeset
@@ -201,9 +201,12 @@ defmodule Schemata.Compile do
           |> validate_required(unquote(required_names))
 
         unquote(cast_has_ast)
+        |> changeset
       end
 
-      defoverridable [changeset: 2]
+      def changeset(%Ecto.Changeset{} = cs), do: cs
+
+      defoverridable [changeset: 1]
 
       unquote(initial)
 
@@ -211,6 +214,14 @@ defmodule Schemata.Compile do
       @type t :: %__MODULE__{}
       @type field :: atom
       @type error_message :: String.t
+
+      def errors(%Ecto.Changeset{valid?: false} = cs) do
+        Ecto.Changeset.traverse_errors(cs, fn {msg, opts} ->
+          Enum.reduce(opts, msg, fn {key, value}, acc ->
+            String.replace(acc, "%{#{key}}", to_string(value))
+          end)
+        end)
+      end
       @spec from_map(map) :: {:ok, t} | {:error, %{field => [error_message]}}
       def from_map(map) do
         cs = __MODULE__.changeset(__MODULE__.new(), map)
@@ -218,14 +229,7 @@ defmodule Schemata.Compile do
         if cs.valid? do
           {:ok, Ecto.Changeset.apply_changes(cs)}
         else
-          errs =
-            Ecto.Changeset.traverse_errors(cs, fn {msg, opts} ->
-              Enum.reduce(opts, msg, fn {key, value}, acc ->
-                String.replace(acc, "%{#{key}}", to_string(value))
-              end)
-            end)
-
-          {:error, errs}
+          {:error, errors(cs)}
         end
       end
     end
