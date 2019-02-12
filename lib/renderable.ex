@@ -2,7 +2,14 @@ defmodule Schemata.Renderable do
   defmacro __using__(opts) do
     embeds = Keyword.get(opts, :embeds, [])
     quote do
-      defdelegate to_map(renderable), to: unquote(__MODULE__)
+      @doc """
+      Given a struct of type t(), returns a raw map (not a struct) with all ecto
+      metadata removed. Recursively calls this on all embeds and associations.
+      """
+      @spec to_map(t()) :: %{field => term}
+      defdelegate to_map(schema), to: unquote(__MODULE__)
+
+      @doc false
       def __embeds__() do
         unquote(embeds)
       end
