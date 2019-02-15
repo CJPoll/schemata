@@ -1,5 +1,46 @@
+defmodule Mac do
+  defmacro __using__(_) do
+    quote do
+      import unquote(__MODULE__)
+    end
+  end
+
+  defmacro defprint({name, _, args}, do: block) do
+    quote do
+      def unquote(name)(unquote_splicing(args)) do
+        args =
+          Enum.map(unquote(args), fn ast ->
+            inspect(Macro.escape(ast))
+          end)
+
+        IO.inspect(
+          "Calling #{inspect(__MODULE__)}.#{inspect(unquote(name))}/#{unquote(length(args))} with args: #{
+            args
+          }"
+        )
+
+        func = fn ->
+          unquote(block)
+        end
+
+        ret = func.()
+
+        IO.inspect(
+          "#{inspect(__MODULE__)}.#{inspect(unquote(name))}/#{unquote(length(args))} returned: #{
+            inspect(ret)
+          }"
+        )
+
+        ret
+      end
+    end
+  end
+end
+
 defmodule Schemata.Compile do
   @moduledoc false
+  use Mac
+
   def names(list) do
     Enum.map(list, fn
       [name, _] -> name
@@ -9,14 +50,17 @@ defmodule Schemata.Compile do
 
   def accumulated_attribute(module, name) do
     case Module.get_attribute(module, name, []) do
-      list when is_list(list) ->
-        if Enum.all?(list, &is_list/1), do: list, else: [list]
+      tuple when is_tuple(tuple) ->
+        [tuple]
 
       nil ->
         []
 
+      list when is_list(list) ->
+        list
+
       other ->
-        [other]
+        raise "Unexpected: #{inspect(other)}"
     end
   end
 
@@ -24,7 +68,9 @@ defmodule Schemata.Compile do
     fields = accumulated_attribute(module, :fields)
     required = accumulated_attribute(module, :required)
     has_one = accumulated_attribute(module, :has_one)
+
     required_has_one = accumulated_attribute(module, :required_has_one)
+
     has_many = accumulated_attribute(module, :has_many)
     required_has_many = accumulated_attribute(module, :required_has_many)
     aliases = accumulated_attribute(module, :aliases)
@@ -173,42 +219,70 @@ defmodule Schemata.Compile do
           end
       end
 
-      schema =
-        if table do
-          quote do
-            Ecto.Schema.schema(unquote(table), do: unquote(ast))
-          end
-        else
-          quote do
-            Ecto.Schema.embedded_schema(do: unquote(ast))
-          end
+    schema =
+      if table do
+        quote do
+          Ecto.Schema.schema(unquote(table), do: unquote(ast))
         end
+      else
+        quote do
+          Ecto.Schema.embedded_schema(do: unquote(ast))
+        end
+      end
 
     quote do
       unquote(schema)
 
-      @type t :: %__MODULE__{}
-      @type data :: Ecto.Schema.t() | Ecto.Changeset.t() | {Ecto.Changeset.data(), Ecto.Changeset.types()}
+      @typedoc """
+      Anything accepted as the first argument to `Ecto.Changeset.cast/4`
+      """
+      @type data ::
+              Ecto.Schema.t()
+              | Ecto.Changeset.t()
+              | {Ecto.Changeset.data(), Ecto.Changeset.types()}
+
+      @typedoc """
+      Anything accepted as the second argument to `Ecto.Changeset.cast/4`
+      """
       @type params :: map()
-      @type error_message :: String.t
+
+      @typedoc "A string describing why a particular field is invalid"
+      @type error_message :: String.t()
+
+      @typedoc """
+      The name of a field, which may map to:
+      - A scalar value (string, integer, etc.)
+      - A `has_one` association
+      - A `has_many` association
+      """
       @type field :: atom
-      @type errors :: %{field => [error_message] | errors}
+
+      @typedoc """
+      Maps from a field name to one of 3 cases:
+
+      - A list of error messages if the field is invalid
+      - An error map for a `has_one` association
+      - A list of error maps for a `has_many` association
+      """
+      @type errors :: %{field => [error_message] | errors | [errors]}
 
       use Schemata.Renderable,
         embeds: unquote(all_embed_names)
 
       @doc """
-      Accepts data and params, and returns either a changeset of that data with
-      the params applied, or a map from field names to error messages or further
-      error maps for invalid associations/embeds.
+      Accepts data and params, and returns either:
+      - an instance of this type with the params applied
+      - an `t:errors/0` map, which maps from field names to error messages, or maps 
 
       When called, aliases are expanded. If params contains multiple aliased
       fields which can resolve to the same field, the one which wins is
       undefined.
 
-      This function casts the data, validates that all required fields are
-      present, and casts all embeds/associations. After this, it passes the
-      resulting changeset to an optional `changeset/1` function in this module,
+      This function:
+      1. Casts the data
+      1. Validates that all required fields are present
+      1. Casts all embeds/associations
+      1. Passes the resulting changeset to an optional `changeset/1` function
       where a developer may add any additional validations or constraints.
       """
       @spec changeset(data, params) :: {:ok, t} | {:error, errors}
@@ -230,12 +304,31 @@ defmodule Schemata.Compile do
       @doc """
       An optional function where a dev can add any arbitrary validations or
       constraints.
+
+      ### Example
+
+      ```elixir
+      import Ecto.Changeset
+
+      def changeset(%Ecto.Changeset{} = changeset) do
+        changeset
+        |> validate_length(:name, max: 100)
+        |> unique_constraint(:email)
+      end
+      ```
       """
-      @spec changeset(Ecto.Changeset.t) :: {:ok, t} | {:error, errors}
+      @spec changeset(Ecto.Changeset.t()) :: {:ok, t} | {:error, errors}
       def changeset(%Ecto.Changeset{} = changeset), do: changeset
-      defoverridable [changeset: 1]
+      defoverridable changeset: 1
 
       unquote(initial)
+
+      unless Module.defines_type?(__MODULE__, {:t, 0}) do
+        @typedoc """
+        An instance of #{inspect(__MODULE__)}
+        """
+        @type t :: %__MODULE__{}
+      end
 
       @doc """
       Returns a freshly initialized struct of type t().
@@ -244,10 +337,10 @@ defmodule Schemata.Compile do
       def new, do: %__MODULE__{}
 
       @doc """
-      Takes a changeset and returns the resulting __MODULE__.errors().
+      Takes a changeset and returns the resulting `t:errors/0`.
       If the changeset is valid, it returns an empty map.
       """
-      @spec errors(Ecto.Changeset.t) :: errors
+      @spec errors(Ecto.Changeset.t()) :: errors
       def errors(%Ecto.Changeset{valid?: false} = changeset) do
         Schemata.errs(changeset)
       end
@@ -275,8 +368,8 @@ defmodule Schemata do
 
   It does this in a few ways:
 
-  1. It generates a `new()` constructor function for your schema
-  1. It generates a changeset/2 function which handles casts (including embeds
+  1. It generates a `new/0` constructor function for your schema
+  1. It generates a `changeset/2` function which handles casts (including embeds
   and associations), and validates required fields/embeds/associations are
   present.
   1. It allows you to define a `changeset/1` function, which takes a
@@ -449,13 +542,48 @@ defmodule Schemata do
     end
   end
 
+  @doc """
+  When building out embedded schemas, it's often convenient to group them
+  together in a single file. When doing this, typing out fully qualified module
+  names gets cumbersome. `defnamespace` allows us to skip some of that
+  boilerplate.
+
+  Example:
+
+  ```elixir
+  use Schemata
+
+  defnamespace MyApp.Accounts do
+    defschema Credential do
+      field :email, :string, required: true
+      field :password, :string, virtual: true
+      field :password_confirmation, :string, virtual: true
+      field :hashed_password, :string, virtual: true
+      field :active?, :boolean, required: true
+
+      timestamps()
+    end
+
+    defschema User do
+      field :display_name, :string
+      has_many :credentials, namespaced(Credential)
+    end
+  end
+  ```
+
+  In this example, the fully qualified modulenames are
+  `MyApp.Accounts.Credential` and `MyApp.Accounts.User`. Because of some macro
+  shenanigans I'm trying to work out regarding `alias` in these schemas, the
+  `namespaced/1` expands a given module name to it's fully qualified name.
+  """
   defmacro defnamespace({:__aliases__, _, left}, do: block) do
     Macro.prewalk(block, fn
       {:defschema, meta, [{:__aliases__, meta, right}, [do: block]]} ->
         {:defschema, meta, [{:__aliases__, meta, Enum.concat(left, right)}, [do: block]]}
 
       {:defschema, meta, [{:__aliases__, meta, right}, [table: table], [do: block]]} ->
-        {:defschema, meta, [{:__aliases__, meta, Enum.concat(left, right)}, [table: table], [do: block]]}
+        {:defschema, meta,
+         [{:__aliases__, meta, Enum.concat(left, right)}, [table: table], [do: block]]}
 
       {:defmodule, meta, [{:__aliases__, meta, right}, [do: block]]} ->
         {:defschema, meta, [{:__aliases__, meta, Enum.concat(left, right)}, [do: block]]}
@@ -501,8 +629,9 @@ defmodule Schemata do
 
     if alias = Keyword.get(opts, :alias, nil) do
       unless is_atom(alias) do
-        raise "alias #{inspect alias} for field #{inspect name} of #{inspect module} must be an atom, not a string"
+        raise "alias #{inspect(alias)} for field #{inspect(name)} of #{inspect(module)} must be an atom, not a string"
       end
+
       Module.put_attribute(module, :aliases, [alias, name])
     end
 
@@ -560,7 +689,7 @@ defmodule Schemata do
       Module.put_attribute(module, :belongs_to, args)
       {nil, module}
     else
-      raise "#{inspect module} has defined a belongs_to association, but is an embedded_schema."
+      raise "#{inspect(module)} has defined a belongs_to association, but is an embedded_schema."
     end
   end
 
@@ -573,7 +702,29 @@ defmodule Schemata do
     |> Keyword.delete(:alias)
   end
 
-  defmacro defschema(module, opts \\ [], [do: block]) do
+  @doc """
+  Defines a schema, and generates several helper functions within it. These
+  functions are documented in the generated schema module.
+
+  ### Functions generated:
+  - `changeset/2`
+  - `errors/1`
+  - `from_map/1`
+  - `new/0`
+  - `to_map/1`
+
+  Additionally, the developer can define a `changeset/1` which gets called by
+  the generated `changeset/2` function. This changeset has already had data
+  casted, required fields checked, and embeds/associations casted.
+
+  ### Options
+
+  - `:table` - A string with the name of a table to back the schema. Defaults to
+  `false`. If false, the schema will be an `embedded_schema`. If set to a string
+  value, the schema will be a table-backed schema.
+
+  """
+  defmacro defschema(module, opts \\ [], do: block) do
     if table = Keyword.get(opts, :table, false) do
       quote do
         defmodule unquote(module) do
@@ -606,7 +757,7 @@ defmodule Schemata do
     Enum.reduce(opts, msg, &reducer/2)
   end
 
-  defp reducer({k, v}, acc) when not is_tuple(k) and not is_tuple(v)do
+  defp reducer({k, v}, acc) when not is_tuple(k) and not is_tuple(v) do
     String.replace(acc, "%{#{k}}", to_string(v))
   end
 
@@ -619,16 +770,16 @@ defmodule Schemata.Params do
     aliases =
       aliases
       |> Enum.map(fn
-        ([k, v]) -> {k, v}
-        ({_k, _v} = kv) -> kv
+        [k, v] -> {k, v}
+        {_k, _v} = kv -> kv
       end)
-      |> Map.new
+      |> Map.new()
 
     resolve_aliases(params, aliases)
   end
 
   def resolve_aliases(params, aliases) when is_map(aliases) do
-    Enum.reduce(aliases, params, fn({alias, name}, acc) ->
+    Enum.reduce(aliases, params, fn {alias, name}, acc ->
       cond do
         Map.has_key?(acc, alias) ->
           rename_key(acc, alias, name)
@@ -645,15 +796,15 @@ defmodule Schemata.Params do
   def atom_keys_to_string(map) when is_map(map) do
     map
     |> Enum.map(fn
-      ({k, v}) when is_atom(k) -> {Atom.to_string(k), v}
-      (other) -> other
+      {k, v} when is_atom(k) -> {Atom.to_string(k), v}
+      other -> other
     end)
-    |> Map.new
+    |> Map.new()
   end
 
   def rename_key(map, old, new) do
     map
-    |> Map.update(new, map[old], fn(_) -> map[old] end)
+    |> Map.update(new, map[old], fn _ -> map[old] end)
     |> Map.delete(old)
   end
 end

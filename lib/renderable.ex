@@ -1,4 +1,10 @@
 defmodule Schemata.Renderable do
+  @moduledoc """
+  A module with generic functions for turning ecto schemas into raw maps.
+
+  When `use`-ed, defines a `to_map/1` function in the calling module which
+  defers to `to_map` in this module.
+  """
   defmacro __using__(opts) do
     embeds = Keyword.get(opts, :embeds, [])
     quote do
@@ -16,6 +22,11 @@ defmodule Schemata.Renderable do
     end
   end
 
+  @doc """
+  Given an ecto schema, returns a raw map (not a struct) with all ecto
+  metadata removed. Recursively calls this on all embeds and associations.
+  """
+  @spec to_map(nil | Ecto.Schema.t | [Ecto.Schema.t]) :: map() | [map()]
   def to_map(nil), do: nil
   def to_map(renderables) when is_list(renderables), do: Enum.map(renderables, &to_map/1)
   def to_map(renderable) do
@@ -30,9 +41,5 @@ defmodule Schemata.Renderable do
         end
     end)
     |> Map.new
-  end
-
-  def render_all(renderables) do
-    Enum.map(renderables, &to_map/1)
   end
 end
