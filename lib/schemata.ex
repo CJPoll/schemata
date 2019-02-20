@@ -335,6 +335,7 @@ defmodule Schemata.Compile do
       """
       @spec new() :: t()
       def new, do: %__MODULE__{}
+      defoverridable new: 0
 
       @doc """
       Takes a changeset and returns the resulting `t:errors/0`.
