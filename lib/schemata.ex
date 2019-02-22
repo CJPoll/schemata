@@ -233,6 +233,8 @@ defmodule Schemata.Compile do
     quote do
       unquote(schema)
 
+      @type nullable(t) :: t | nil
+
       @typedoc """
       Anything accepted as the first argument to `Ecto.Changeset.cast/4`
       """
