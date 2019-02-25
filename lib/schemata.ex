@@ -1,4 +1,6 @@
 defmodule Mac do
+  @moduledoc false
+
   defmacro __using__(_) do
     quote do
       import unquote(__MODULE__)
@@ -40,6 +42,7 @@ end
 defmodule Schemata.Compile do
   @moduledoc false
   use Mac
+  alias Schemata.Types
 
   def names(list) do
     Enum.map(list, fn
@@ -104,12 +107,20 @@ defmodule Schemata.Compile do
       end) ++
         Enum.map(fields ++ required, fn
           [name, type] ->
+            typespec_name = Macro.var(name, __MODULE__)
+            typespec_type = Types.type(type)
+
             quote do
+              @type unquote(typespec_name) :: unquote(typespec_type)
               Ecto.Schema.field(unquote(name), unquote(type))
             end
 
           [name, type, opts] ->
+            typespec_name = Macro.var(name, __MODULE__)
+            typespec_type = Types.type(type)
+
             quote do
+              @type unquote(typespec_name) :: unquote(typespec_type)
               Ecto.Schema.field(unquote(name), unquote(type), unquote(opts))
             end
 
@@ -118,27 +129,64 @@ defmodule Schemata.Compile do
         end) ++
         Enum.map(has_one ++ required_has_one, fn
           [name, type] ->
-            if table do
-              quote do
-                Ecto.Schema.has_one(unquote(name), unquote(type))
-              end
-            else
-              quote do
-                Ecto.Schema.embeds_one(unquote(name), unquote(type))
-              end
+            typespec_name = Macro.var(name, __MODULE__)
+            typespec_type = Types.type(type)
+
+            cond do
+              is_nil(table) and type in required_has_one ->
+                quote do
+                  @type unquote(typespec_name) :: unquote(typespec_type)
+                  Ecto.Schema.embeds_one(unquote(name), unquote(type))
+                end
+
+              type in required_has_one ->
+                quote do
+                  @type unquote(typespec_name) :: unquote(typespec_type)
+                  Ecto.Schema.has_one(unquote(name), unquote(type))
+                end
+
+              is_nil(table) ->
+                quote do
+                  @type unquote(typespec_name) :: nullable(unquote(typespec_type))
+                  Ecto.Schema.embeds_one(unquote(name), unquote(type))
+                end
+
+              true ->
+                quote do
+                  @type unquote(typespec_name) :: nullable(unquote(typespec_type))
+                  Ecto.Schema.has_one(unquote(name), unquote(type))
+                end
             end
 
           [name, type, opts] ->
             opts = Keyword.delete(opts, :required)
+            typespec_name = Macro.var(name, __MODULE__)
+            typespec_type = Types.type(type)
 
-            if table do
-              quote do
-                Ecto.Schema.has_one(unquote(name), unquote(type), unquote(opts))
-              end
-            else
-              quote do
-                Ecto.Schema.embeds_one(unquote(name), unquote(type), unquote(opts))
-              end
+            cond do
+              is_nil(table) and type in required_has_one ->
+                quote do
+                  @type unquote(typespec_name) :: unquote(typespec_type)
+                  Ecto.Schema.embeds_one(unquote(name), unquote(type), unquote(opts))
+                end
+
+              type in required_has_one ->
+                quote do
+                  @type unquote(typespec_name) :: unquote(typespec_type)
+                  Ecto.Schema.has_one(unquote(name), unquote(type), unquote(opts))
+                end
+
+              is_nil(table) ->
+                quote do
+                  @type unquote(typespec_name) :: nullable(unquote(typespec_type))
+                  Ecto.Schema.embeds_one(unquote(name), unquote(type), unquote(opts))
+                end
+
+              true ->
+                quote do
+                  @type unquote(typespec_name) :: nullable(unquote(typespec_type))
+                  Ecto.Schema.has_one(unquote(name), unquote(type), unquote(opts))
+                end
             end
 
           _ ->
@@ -146,27 +194,64 @@ defmodule Schemata.Compile do
         end) ++
         Enum.map(has_many ++ required_has_many, fn
           [name, type] ->
-            if table do
-              quote do
-                Ecto.Schema.has_many(unquote(name), unquote(type))
-              end
-            else
-              quote do
-                Ecto.Schema.embeds_many(unquote(name), unquote(type))
-              end
+            typespec_name = Macro.var(name, __MODULE__)
+            typespec_type = Types.type(type)
+
+            cond do
+              is_nil(table) and type in required_has_many ->
+                quote do
+                  @type unquote(typespec_name) :: unquote(typespec_type)
+                  Ecto.Schema.embeds_many(unquote(name), unquote(type))
+                end
+
+              type in required_has_many ->
+                quote do
+                  @type unquote(typespec_name) :: unquote(typespec_type)
+                  Ecto.Schema.has_many(unquote(name), unquote(type))
+                end
+
+              is_nil(table) ->
+                quote do
+                  @type unquote(typespec_name) :: nullable(unquote(typespec_type))
+                  Ecto.Schema.embeds_many(unquote(name), unquote(type))
+                end
+
+              true ->
+                quote do
+                  @type unquote(typespec_name) :: nullable(unquote(typespec_type))
+                  Ecto.Schema.has_many(unquote(name), unquote(type))
+                end
             end
 
           [name, type, opts] ->
             opts = Keyword.delete(opts, :required)
+            typespec_name = Macro.var(name, __MODULE__)
+            typespec_type = Types.type(type)
 
-            if table do
-              quote do
-                Ecto.Schema.has_many(unquote(name), unquote(type), unquote(opts))
-              end
-            else
-              quote do
-                Ecto.Schema.embeds_many(unquote(name), unquote(type), unquote(opts))
-              end
+            cond do
+              is_nil(table) and type in required_has_many ->
+                quote do
+                  @type unquote(typespec_name) :: unquote(typespec_type)
+                  Ecto.Schema.embeds_many(unquote(name), unquote(type), unquote(opts))
+                end
+
+              type in required_has_many ->
+                quote do
+                  @type unquote(typespec_name) :: unquote(typespec_type)
+                  Ecto.Schema.has_many(unquote(name), unquote(type), unquote(opts))
+                end
+
+              is_nil(table) ->
+                quote do
+                  @type unquote(typespec_name) :: nullable(unquote(typespec_type))
+                  Ecto.Schema.embeds_many(unquote(name), unquote(type), unquote(opts))
+                end
+
+              true ->
+                quote do
+                  @type unquote(typespec_name) :: nullable(unquote(typespec_type))
+                  Ecto.Schema.has_many(unquote(name), unquote(type), unquote(opts))
+                end
             end
         end)
 
@@ -231,9 +316,9 @@ defmodule Schemata.Compile do
       end
 
     quote do
-      unquote(schema)
-
       @type nullable(t) :: t | nil
+
+      unquote(schema)
 
       @typedoc """
       Anything accepted as the first argument to `Ecto.Changeset.cast/4`
