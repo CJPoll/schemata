@@ -1,6 +1,12 @@
 use Schemata
 
 defnamespace MyApp.Retail do
+  defschema Thing, table: "my_table" do
+    field(:first_name, :string, required: true)
+
+    query_field(:first_name)
+  end
+
   defschema Employee do
     field(:first_name, :string, required: true)
     field(:last_name, :string, required: true)

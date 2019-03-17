@@ -79,7 +79,7 @@ defmodule Schemata.Compile do
     aliases = accumulated_attribute(module, :aliases)
     belongs_to = accumulated_attribute(module, :belongs_to)
 
-    table = Module.get_attribute(module, :table, nil)
+    table = Module.get_attribute(module, :table, false)
 
     required_names = names(required)
     names = names(fields) ++ names(required)
@@ -753,7 +753,7 @@ defmodule Schemata do
   end
 
   def handle_node({:belongs_to, _meta, args}, module) do
-    table = Module.get_attribute(module, :table, nil)
+    table = Module.get_attribute(module, :table, false)
 
     if table do
       Module.put_attribute(module, :belongs_to, args)
@@ -800,6 +800,7 @@ defmodule Schemata do
         defmodule unquote(module) do
           use Ecto.Schema
           import Ecto.Changeset
+          import Schemata.Queries
 
           unquote(__MODULE__).deffields(unquote(table), do: unquote(block))
         end
