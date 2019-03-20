@@ -1,48 +1,5 @@
-defmodule Mac do
-  @moduledoc false
-
-  defmacro __using__(_) do
-    quote do
-      import unquote(__MODULE__)
-    end
-  end
-
-  defmacro defprint({name, _, args}, do: block) do
-    quote do
-      def unquote(name)(unquote_splicing(args)) do
-        args =
-          Enum.map(unquote(args), fn ast ->
-            inspect(Macro.escape(ast))
-          end)
-
-        IO.inspect(
-          "Calling #{inspect(__MODULE__)}.#{inspect(unquote(name))}/#{unquote(length(args))} with args: #{
-            args
-          }"
-        )
-
-        func = fn ->
-          unquote(block)
-        end
-
-        ret = func.()
-
-        IO.inspect(
-          "#{inspect(__MODULE__)}.#{inspect(unquote(name))}/#{unquote(length(args))} returned: #{
-            inspect(ret)
-          }"
-        )
-
-        ret
-      end
-    end
-  end
-end
-
 defmodule Schemata.Compile do
   @moduledoc false
-  use Mac
-  # alias Schemata.Types
 
   def names(list) do
     Enum.map(list, fn
@@ -71,13 +28,18 @@ defmodule Schemata.Compile do
     fields = accumulated_attribute(module, :fields)
     required = accumulated_attribute(module, :required)
     has_one = accumulated_attribute(module, :has_one)
+    belongs_to = accumulated_attribute(module, :belongs_to)
 
     required_has_one = accumulated_attribute(module, :required_has_one)
+
+    many_to_many = accumulated_attribute(module, :many_to_many)
+    required_many_to_many = accumulated_attribute(module, :required_many_to_many)
+    many_to_many_names = names(many_to_many) ++ names(required_many_to_many)
+    required_many_to_many_names = names(required_many_to_many)
 
     has_many = accumulated_attribute(module, :has_many)
     required_has_many = accumulated_attribute(module, :required_has_many)
     aliases = accumulated_attribute(module, :aliases)
-    belongs_to = accumulated_attribute(module, :belongs_to)
 
     table = Module.get_attribute(module, :table, false)
 
@@ -87,24 +49,50 @@ defmodule Schemata.Compile do
     required_has_one_names = names(required_has_one)
     has_one_names = names(has_one) ++ names(required_has_one)
 
+    belongs_to_names = names(belongs_to)
+
     required_has_many_names = names(required_has_many)
     has_many_names = names(has_many) ++ names(required_has_many)
 
+    timestamps = Module.get_attribute(module, :timestamps, nil)
+
     ast =
-      Enum.map(belongs_to, fn
-        [name, type] ->
-          quote do
-            Ecto.Schema.belongs_to(unquote(name), unquote(type))
-          end
-
-        [name, type, opts] ->
-          quote do
-            Ecto.Schema.belongs_to(unquote(name), unquote(type), unquote(opts))
-          end
-
-        _ ->
+      case timestamps do
+        nil ->
           []
-      end) ++
+
+        [args] ->
+          [
+            quote do
+              Ecto.Schema.timestamps(unquote(args))
+            end
+          ]
+      end ++
+        Enum.map(many_to_many ++ required_many_to_many, fn
+          [name, type] ->
+            quote do
+              Ecto.Schema.many_to_many(unquote(name), unquote(type))
+            end
+
+          [name, type, opts] ->
+            quote do
+              Ecto.Schema.many_to_many(unquote(name), unquote(type), unquote(opts))
+            end
+        end) ++
+        Enum.map(belongs_to, fn
+          [name, type] ->
+            quote do
+              Ecto.Schema.belongs_to(unquote(name), unquote(type))
+            end
+
+          [name, type, opts] ->
+            quote do
+              Ecto.Schema.belongs_to(unquote(name), unquote(type), unquote(opts))
+            end
+
+          _ ->
+            []
+        end) ++
         Enum.map(fields ++ required, fn
           [name, type] ->
             # typespec_name = Macro.var(name, __MODULE__)
@@ -237,8 +225,10 @@ defmodule Schemata.Compile do
             end
         end)
 
-    required_embed_names = required_has_one_names ++ required_has_many_names
-    all_embed_names = has_one_names ++ has_many_names
+    required_embed_names =
+      required_has_one_names ++ required_has_many_names ++ required_many_to_many_names
+
+    all_embed_names = has_one_names ++ has_many_names ++ belongs_to_names ++ many_to_many_names
 
     cast_has_ast =
       cond do
@@ -684,10 +674,13 @@ defmodule Schemata do
     Module.register_attribute(__CALLER__.module, :required, accumulate: true)
     Module.register_attribute(__CALLER__.module, :has_one, accumulate: true)
     Module.register_attribute(__CALLER__.module, :required_has_one, accumulate: true)
+    Module.register_attribute(__CALLER__.module, :many_to_many, accumulate: true)
+    Module.register_attribute(__CALLER__.module, :required_many_to_many, accumulate: true)
     Module.register_attribute(__CALLER__.module, :has_many, accumulate: true)
     Module.register_attribute(__CALLER__.module, :required_has_many, accumulate: true)
     Module.register_attribute(__CALLER__.module, :aliases, accumulate: true)
     Module.register_attribute(__CALLER__.module, :belongs_to, accumulate: true)
+    Module.register_attribute(__CALLER__.module, :timestamps, [])
 
     {ast, _} = Macro.prewalk(block, __CALLER__.module, &handle_node/2)
     __MODULE__.Compile.do_compile(__CALLER__.module, ast)
@@ -724,8 +717,13 @@ defmodule Schemata do
     {nil, module}
   end
 
+  def handle_node({:timestamps, _meta, args}, module) do
+    Module.put_attribute(module, :timestamps, args)
+    {nil, module}
+  end
+
   def handle_node({embed, _meta, [name, type, opts]}, module)
-      when embed in [:has_one, :has_many] and is_list(opts) do
+      when embed in [:has_one, :has_many, :many_to_many] and is_list(opts) do
     if alias = Keyword.get(opts, :alias, nil) do
       Module.put_attribute(module, :aliases, [alias, name])
     end
@@ -743,7 +741,8 @@ defmodule Schemata do
     {nil, module}
   end
 
-  def handle_node({embed, _meta, args}, module) when embed in [:has_one, :has_many] do
+  def handle_node({embed, _meta, args}, module)
+      when embed in [:has_one, :has_many, :many_to_many] do
     Module.put_attribute(module, embed, args)
     {nil, module}
   end
