@@ -425,4 +425,18 @@ defmodule Schemata do
       unquote(gen_funcs(__CALLER__.module))
     end
   end
+
+  def errs(%Ecto.Changeset{valid?: false} = cs) do
+    Ecto.Changeset.traverse_errors(cs, &traverse/1)
+  end
+
+  defp traverse({msg, opts}) do
+    Enum.reduce(opts, msg, &reducer/2)
+  end
+
+  defp reducer({k, v}, acc) when not is_tuple(k) and not is_tuple(v) do
+    String.replace(acc, "%{#{k}}", to_string(v))
+  end
+
+  defp reducer(_kv, acc), do: acc
 end
