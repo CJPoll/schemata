@@ -3,6 +3,8 @@ defmodule Schemata do
     quote do
       use Ecto.Schema
       import unquote(__MODULE__)
+      require Schemata.Queries
+      import Schemata.Queries
     end
   end
 
