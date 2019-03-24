@@ -63,10 +63,12 @@ defmodule Schemata do
       Module.put_attribute(module, :aliases, {alias, name})
     end
 
+    required = Keyword.get(opts, :required, false)
+
     opts = sanitize(opts)
     args = [name, type, opts]
 
-    if Keyword.get(opts, :required, false) do
+    if required do
       Module.put_attribute(module, :"required_#{embed}", List.to_tuple(args))
     else
       Module.put_attribute(module, embed, List.to_tuple(args))
@@ -190,6 +192,7 @@ defmodule Schemata do
     cond do
       all_embed_names == [] ->
         quote do
+        IO.inspect("No embed names")
           cs
         end
 
@@ -202,6 +205,7 @@ defmodule Schemata do
           end
         else
           quote do
+        IO.inspect("No required embed names")
             Enum.reduce(unquote(all_embed_names), cs, fn name, cs ->
               cast_embed(cs, name)
             end)
@@ -213,9 +217,11 @@ defmodule Schemata do
           quote do
             Enum.reduce(unquote(all_embed_names), cs, fn
               name, cs when name in unquote(required_embed_names) ->
+                IO.inspect("Required Embed")
                 cast_assoc(cs, name, required: true)
 
               name, cs ->
+                IO.inspect("Optional Embed")
                 cast_assoc(cs, name)
             end)
           end
@@ -223,9 +229,11 @@ defmodule Schemata do
           quote do
             Enum.reduce(unquote(all_embed_names), cs, fn
               name, cs when name in unquote(required_embed_names) ->
+                IO.inspect("Required Embed")
                 cast_embed(cs, name, required: true)
 
               name, cs ->
+                IO.inspect("Optional Embed")
                 cast_embed(cs, name)
             end)
           end
@@ -235,19 +243,19 @@ defmodule Schemata do
 
   defp gen_funcs(module) do
     fields = accumulated_attribute(module, :fields)
-    required = accumulated_attribute(module, :required)
+    required = accumulated_attribute(module, :required) |> IO.inspect(label: "Required Fields")
     has_one = accumulated_attribute(module, :has_one)
     belongs_to = accumulated_attribute(module, :belongs_to)
 
-    required_has_one = accumulated_attribute(module, :required_has_one)
+    required_has_one = accumulated_attribute(module, :required_has_one) |> IO.inspect(label: "Required Has One")
 
     many_to_many = accumulated_attribute(module, :many_to_many)
-    required_many_to_many = accumulated_attribute(module, :required_many_to_many)
+    required_many_to_many = accumulated_attribute(module, :required_many_to_many) |> IO.inspect(label: "Required Many to Many")
     many_to_many_names = names(many_to_many) ++ names(required_many_to_many)
     required_many_to_many_names = names(required_many_to_many)
 
     has_many = accumulated_attribute(module, :has_many)
-    required_has_many = accumulated_attribute(module, :required_has_many)
+    required_has_many = accumulated_attribute(module, :required_has_many) |> IO.inspect(label: "Required Has Many")
     aliases = accumulated_attribute(module, :aliases)
 
     table = Module.get_attribute(module, :table, false)
