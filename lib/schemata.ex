@@ -237,6 +237,10 @@ defmodule Schemata do
     end
   end
 
+  defp assoc_names(names) do
+    Enum.map(names, &:"#{&1}_id")
+  end
+
   defp gen_funcs(module) do
     fields = accumulated_attribute(module, :fields)
     required = accumulated_attribute(module, :required)
@@ -257,7 +261,7 @@ defmodule Schemata do
     table = Module.get_attribute(module, :table, false)
 
     required_names = names(required)
-    names = names(fields) ++ names(required)
+    names = names(fields) ++ names(required) ++ (belongs_to |> names |> assoc_names)
 
     required_has_one_names = names(required_has_one)
     has_one_names = names(has_one) ++ names(required_has_one)
