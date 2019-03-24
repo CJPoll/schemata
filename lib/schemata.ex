@@ -147,18 +147,18 @@ defmodule Schemata do
     |> Keyword.delete(:alias)
   end
 
-  defmacrop register_attributes do
-    Module.register_attribute(__CALLER__.module, :fields, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :required, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :has_one, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :required_has_one, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :many_to_many, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :required_many_to_many, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :has_many, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :required_has_many, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :aliases, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :belongs_to, accumulate: true)
-    Module.register_attribute(__CALLER__.module, :timestamps, [])
+  defp register_attributes(module) do
+    Module.register_attribute(module, :fields, accumulate: true)
+    Module.register_attribute(module, :required, accumulate: true)
+    Module.register_attribute(module, :has_one, accumulate: true)
+    Module.register_attribute(module, :required_has_one, accumulate: true)
+    Module.register_attribute(module, :many_to_many, accumulate: true)
+    Module.register_attribute(module, :required_many_to_many, accumulate: true)
+    Module.register_attribute(module, :has_many, accumulate: true)
+    Module.register_attribute(module, :required_has_many, accumulate: true)
+    Module.register_attribute(module, :aliases, accumulate: true)
+    Module.register_attribute(module, :belongs_to, accumulate: true)
+    Module.register_attribute(module, :timestamps, [])
   end
 
   @doc false
@@ -400,7 +400,7 @@ defmodule Schemata do
   end
 
   defmacro defschema(table, [do: block]) do
-    register_attributes()
+    register_attributes(__CALLER__.module)
 
     Module.put_attribute(__CALLER__.module, :table, table)
 
@@ -416,7 +416,7 @@ defmodule Schemata do
   end
 
   defmacro defschema([do: block]) do
-    register_attributes()
+    register_attributes(__CALLER__.module)
     {block, _} = Macro.prewalk(block, __CALLER__.module, &handle_node/2)
 
     quote do
