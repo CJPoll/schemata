@@ -5,6 +5,7 @@ defmodule Schemata do
       import unquote(__MODULE__)
       require Schemata.Queries
       import Schemata.Queries
+      import Ecto.Query
     end
   end
 
