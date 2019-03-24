@@ -6,6 +6,7 @@ defmodule Schemata do
       require Schemata.Queries
       import Schemata.Queries
       import Ecto.Query
+      import Ecto.Changeset
     end
   end
 
