@@ -344,7 +344,7 @@ defmodule Schemata.Compile do
       1. Passes the resulting changeset to an optional `changeset/1` function
       where a developer may add any additional validations or constraints.
       """
-      @spec changeset(data, params) :: {:ok, t} | {:error, errors}
+      @spec changeset(data, params) :: Ecto.Changeset.t()
       def changeset(data, params) do
         import Ecto.Changeset
 
