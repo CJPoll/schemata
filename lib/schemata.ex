@@ -376,7 +376,7 @@ defmodule Schemata.Compile do
       end
       ```
       """
-      @spec changeset(Ecto.Changeset.t()) :: {:ok, t} | {:error, errors}
+      @spec changeset(Ecto.Changeset.t()) :: Ecto.Changeset.t()
       def changeset(%Ecto.Changeset{} = changeset), do: changeset
       defoverridable changeset: 1
 
