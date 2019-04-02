@@ -20,7 +20,7 @@ defmodule Schemata.ChangesetTest do
     end
   end
 
-  defmacro required_fields(fields) do
+  defmacro required_fields(fields) when is_list(fields) do
     for field <- fields do
       quote do
         unquote(__MODULE__).required_field(unquote(field))
@@ -38,6 +38,53 @@ defmodule Schemata.ChangesetTest do
           assert %{valid?: false} = changeset
         else
           refute changeset.valid?
+        end
+      end
+    end
+  end
+
+  defmacro default_values(keyword) do
+    for {field, value} <- keyword do
+      quote do
+        unquote(__MODULE__).default_value(unquote(field), unquote(value))
+      end
+    end
+  end
+
+  defmacro default_value(field, default) do
+    quote do
+      test "#{unquote(field)} defaults to #{inspect(unquote(default))}" do
+        params = @valid_params |> Schemata.Params.delete_key(unquote(field))
+        changeset = @test_module.changeset(@test_module.new(), params)
+
+        if changeset.valid? do
+          assert %@test_module{unquote(field) => unquote(default)} =
+                   Ecto.Changeset.apply_changes(changeset)
+        else
+          assert %{valid?: true} = changeset
+        end
+      end
+    end
+  end
+
+  defmacro optional_fields(fields) do
+    for field <- fields do
+      quote do
+        unquote(__MODULE__).optional_field(unquote(field))
+      end
+    end
+  end
+
+  defmacro optional_field(field) do
+    quote do
+      test "#{unquote(field)} is optional" do
+        params = @valid_params |> Schemata.Params.delete_key(unquote(field))
+        changeset = @test_module.changeset(@test_module.new(), params)
+
+        if changeset.valid? do
+          assert changeset.valid?
+        else
+          assert %{valid?: true} = changeset
         end
       end
     end

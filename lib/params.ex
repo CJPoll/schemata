@@ -47,4 +47,10 @@ defmodule Schemata.Params do
     |> atom_keys_to_string
     |> Map.delete(Atom.to_string(key))
   end
+
+  def has_key?(params, key) when is_atom(key) do
+    params
+    |> atom_keys_to_string
+    |> Map.has_key?(Atom.to_string(key))
+  end
 end
