@@ -1,33 +1,56 @@
-use Schemata
+defmodule Testing.Embed do
+  use Schemata
 
-defnamespace Testing do
-  defschema Embed do
-    field :first_name, :string, required: true, alias: :name
-    field :last_name, :string
+  defschema do
+    field(:first_name, :string, required: true, alias: :name)
+    field(:last_name, :string)
+  end
+end
+
+defmodule Testing.TestSchema do
+  use Schemata
+  alias Testing.Embed
+
+  defschema do
+    field(:name, :string, required: true)
+    field(:optional, :integer)
+    field(:other, :integer, default: 0)
+
+    has_one(:required_embed, Embed, required: true, alias: :req_embed)
+    has_one(:optional_embed, Embed)
+    has_many(:required_embeds, Embed, required: true, alias: :req_embeds)
+    has_many(:optional_embeds, Embed, alias: :op_embeds)
   end
 
-  defschema TestSchema do
-    field :name, :string, required: true
-    field :optional, :integer
-
-    has_one :required_embed, ns(Embed), required: true, alias: :req_embed
-    has_one :optional_embed, ns(Embed)
-    has_many :required_embeds, ns(Embed), required: true, alias: :req_embeds
-    has_many :optional_embeds, ns(Embed), alias: :op_embeds
-
-    def changeset(%Ecto.Changeset{} = cs) do
-      validate_number(cs, :optional, greater_than_or_equal_to: 10)
-    end
+  def changeset(%Ecto.Changeset{} = cs) do
+    validate_number(cs, :optional, greater_than_or_equal_to: 10)
   end
 end
 
 defmodule TestSchema.Test do
   use ExUnit.Case
+  @embed %{first_name: "name2", optional: "abc"}
 
-  @test_module Testing.TestSchema
+  use Schemata.ChangesetTest,
+    module: Testing.TestSchema,
+    valid_params: %{
+      name: "name",
+      required_embed: @embed,
+      required_embeds: [@embed],
+      optional_embeds: [@embed],
+      optional_embed: @embed,
+      optional_field: 10
+    }
+
   alias Testing.Embed
 
   alias Schemata.Params
+
+  valid_params!()
+
+  required_fields([:name, :required_embed, :required_embeds])
+  default_values(other: 0)
+  optional_fields([:optional_embeds, :optional_embed, :optional_field, :other])
 
   describe "new/0" do
     test "returns a struct" do
@@ -36,15 +59,6 @@ defmodule TestSchema.Test do
   end
 
   describe "from_map/1" do
-    @embed %{first_name: "name2", optional: "abc"}
-    @valid_params %{
-      name: "name",
-      required_embed: @embed,
-      required_embeds: [@embed],
-      optional_embeds: [@embed],
-      optional_embed: @embed,
-      optional_field: 10
-    }
     @valid_string_params Schemata.Params.atom_keys_to_string(@valid_params)
     @invalid_params %{}
 
@@ -86,80 +100,80 @@ defmodule TestSchema.Test do
 
     test "is invalid if required field is missing" do
       assert {:error, %{first_name: ["can't be blank"]}} =
-        @embed
-        |> Map.delete(:first_name)
-        |> Embed.from_map
+               @embed
+               |> Map.delete(:first_name)
+               |> Embed.from_map()
     end
 
     test "allows aliases in params" do
       assert {:ok, %Embed{}} =
-        @embed
-        |> Params.rename_key(:first_name, :name)
-        |> Embed.from_map
+               @embed
+               |> Params.rename_key(:first_name, :name)
+               |> Embed.from_map()
     end
 
     test "is still valid if optional params are ommitted" do
       assert {:ok, %Embed{}} =
-        @embed
-        |> Map.delete(:optional)
-        |> Embed.from_map
+               @embed
+               |> Map.delete(:optional)
+               |> Embed.from_map()
     end
 
     test "is invalid if a required has_one is ommitted" do
       assert {:error, %{required_embed: ["can't be blank"]}} =
-        @valid_params
-        |> Map.delete(:required_embed)
-        |> @test_module.from_map
+               @valid_params
+               |> Map.delete(:required_embed)
+               |> @test_module.from_map
     end
 
     test "is invalid if a required has_many is ommitted" do
       assert {:error, %{required_embeds: ["can't be blank"]}} =
-        @valid_params
-        |> Map.delete(:required_embeds)
-        |> @test_module.from_map
+               @valid_params
+               |> Map.delete(:required_embeds)
+               |> @test_module.from_map
     end
 
     test "is valid if an optional has_one is ommitted" do
       assert {:ok, %@test_module{}} =
-        @valid_params
-        |> Map.delete(:optional_embed)
-        |> @test_module.from_map
+               @valid_params
+               |> Map.delete(:optional_embed)
+               |> @test_module.from_map
     end
 
     test "is valid if an optional has_many is ommitted" do
       assert {:ok, %@test_module{}} =
-        @valid_params
-        |> Map.delete(:optional_embeds)
-        |> @test_module.from_map
+               @valid_params
+               |> Map.delete(:optional_embeds)
+               |> @test_module.from_map
     end
 
     test "is valid if an optional has_many is aliased" do
       assert {:ok, %@test_module{}} =
-        @valid_params
-        |> Params.rename_key(:optional_embeds, :op_embeds)
-        |> @test_module.from_map
+               @valid_params
+               |> Params.rename_key(:optional_embeds, :op_embeds)
+               |> @test_module.from_map
     end
 
     test "is invalid if an optional has_many is nil" do
       assert {:error, %{optional_embeds: ["is invalid"]}} =
-        @valid_params
-        |> Map.put(:optional_embeds, nil)
-        |> @test_module.from_map
+               @valid_params
+               |> Map.put(:optional_embeds, nil)
+               |> @test_module.from_map
     end
 
     test "is invalid if an optional has_many is aliased and nil" do
       assert {:error, %{optional_embeds: ["is invalid"]}} =
-        @valid_params
-        |> Map.put(:optional_embeds, nil)
-        |> Params.rename_key(:optional_embeds, :op_embeds)
-        |> @test_module.from_map
+               @valid_params
+               |> Map.put(:optional_embeds, nil)
+               |> Params.rename_key(:optional_embeds, :op_embeds)
+               |> @test_module.from_map
     end
 
     test "calls an optional changeset/1 function" do
       assert {:error, %{optional: ["must be greater than or equal to 10"]}} =
-        @valid_params
-        |> Map.put(:optional, 9)
-        |> @test_module.from_map
+               @valid_params
+               |> Map.put(:optional, 9)
+               |> @test_module.from_map
     end
   end
 end
