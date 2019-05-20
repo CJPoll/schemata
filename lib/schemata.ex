@@ -132,7 +132,7 @@ defmodule Schemata do
 
       ast =
         quote do
-        require Ecto.Schema
+          require Ecto.Schema
           Ecto.Schema.belongs_to(unquote_splicing(args))
         end
 
@@ -271,7 +271,7 @@ defmodule Schemata do
     required_has_many_names = names(required_has_many)
     has_many_names = names(has_many) ++ names(required_has_many)
 
-    #timestamps = Module.get_attribute(module, :timestamps, nil)
+    # timestamps = Module.get_attribute(module, :timestamps, nil)
 
     required_embed_names =
       required_has_one_names ++ required_has_many_names ++ required_many_to_many_names
@@ -407,7 +407,7 @@ defmodule Schemata do
     end
   end
 
-  defmacro defschema(table, [do: block]) do
+  defmacro defschema(table, do: block) do
     register_attributes(__CALLER__.module)
 
     Module.put_attribute(__CALLER__.module, :table, table)
@@ -423,7 +423,7 @@ defmodule Schemata do
     end
   end
 
-  defmacro defschema([do: block]) do
+  defmacro defschema(do: block) do
     register_attributes(__CALLER__.module)
     {block, _} = Macro.prewalk(block, __CALLER__.module, &handle_node/2)
 
