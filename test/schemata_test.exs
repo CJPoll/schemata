@@ -2,7 +2,7 @@ defmodule Testing.Embed do
   use Schemata
 
   defschema do
-    field(:first_name, :string, required: true, alias: :name)
+    field(:first_name, :string, required: true, alias: :firstName)
     field(:last_name, :string)
   end
 end
@@ -29,6 +29,7 @@ end
 
 defmodule TestSchema.Test do
   use ExUnit.Case
+
   @embed %{first_name: "name2", optional: "abc"}
 
   use Schemata.ChangesetTest,
@@ -108,8 +109,17 @@ defmodule TestSchema.Test do
     test "allows aliases in params" do
       assert {:ok, %Embed{}} =
                @embed
-               |> Params.rename_key(:first_name, :name)
+               |> Params.rename_key(:first_name, :firstName)
                |> Embed.from_map()
+    end
+
+    test "does not maintain the alias when converting the struct to a map" do
+      {:ok, %Embed{} = embed} =
+        @embed
+        |> Params.rename_key(:first_name, :firstName)
+        |> Embed.from_map()
+
+      assert %{first_name: _} = Embed.to_map(embed)
     end
 
     test "is still valid if optional params are ommitted" do
