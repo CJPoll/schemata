@@ -53,7 +53,7 @@ defmodule Schemata do
 
     ast =
       quote do
-        Ecto.Schema.timestamps(unquote(args))
+        Ecto.Schema.timestamps(unquote(List.flatten(args)))
       end
 
     {ast, module}

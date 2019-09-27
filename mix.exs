@@ -20,6 +20,7 @@ defmodule Schemata.MixProject do
   defp deps do
     [
       {:ecto, "~> 3.0"},
+      {:ecto_sql, "~> 3.0", optional: true},
       {:ex_doc, "~> 0.19.0", only: [:dev, :test]}
     ]
   end

@@ -1,7 +1,17 @@
 version: '3'
 
+volumes:
+  schemata_build:
+    driver: local
+  schemata_deps:
+    driver: local
+
 services:
   schemata:
     build: .
     volumes:
       - ".:/code"
+      - "schemata_build:/code/_build"
+      - "schemata_deps:/code/deps"
+  postgres:
+    image: postgres:11.1-alpine

@@ -1,4 +1,4 @@
-FROM elixir:1.8-alpine
+FROM elixir:1.9-alpine
 
 RUN apk update
 RUN apk add alpine-sdk curl tar xz git bash
