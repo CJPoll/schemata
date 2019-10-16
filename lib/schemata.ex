@@ -273,8 +273,7 @@ defmodule Schemata do
 
     # timestamps = Module.get_attribute(module, :timestamps, nil)
 
-    required_embed_names =
-      required_has_one_names ++ required_has_many_names ++ required_many_to_many_names
+    required_embed_names = required_has_one_names ++ required_has_many_names ++ required_many_to_many_names
 
     all_embed_names = has_one_names ++ has_many_names ++ belongs_to_names ++ many_to_many_names
 
@@ -315,7 +314,7 @@ defmodule Schemata do
       @type errors :: %{field => [error_message] | errors | [errors]}
 
       use Schemata.Renderable,
-        embeds: unquote(all_embed_names)
+        assocs: unquote(all_embed_names)
 
       @doc """
       Accepts data and params, and returns either:

@@ -6,14 +6,14 @@ defmodule Schemata.Renderable do
   defers to `to_map` in this module.
   """
   defmacro __using__(opts) do
-    embeds = Keyword.get(opts, :embeds, [])
+    embeds = Keyword.get(opts, :assocs, [])
 
     quote do
       @doc """
       Given a struct of type t(), returns a raw map (not a struct) with all ecto
       metadata removed. Recursively calls this on all embeds and associations.
       """
-      @spec to_map(t()) :: %{field => term}
+      @spec to_map(%__MODULE__{}) :: map
       defdelegate to_map(schema), to: unquote(__MODULE__)
       defdelegate to_map(schema, opts), to: unquote(__MODULE__)
 
