@@ -7,6 +7,12 @@ defmodule Schemata do
       import Schemata.Queries
       import Ecto.Query
       import Ecto.Changeset
+      
+      @behaviour Ecto.Type
+      def type, do: :schemata_virtual_type
+      def cast(_), do: :error
+      def dump(_), do: :error
+      def load(_), do: :error
     end
   end
 
