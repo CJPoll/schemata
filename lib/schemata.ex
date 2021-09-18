@@ -14,6 +14,7 @@ defmodule Schemata do
       def dump(_), do: :error
       def load(_), do: :error
       def equal?(_, _), do: false
+      def embed_as(_), do: :error
     end
   end
 
