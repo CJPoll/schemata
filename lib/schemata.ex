@@ -13,6 +13,7 @@ defmodule Schemata do
       def cast(_), do: :error
       def dump(_), do: :error
       def load(_), do: :error
+      def equal?(_, _), do: false
     end
   end
 
