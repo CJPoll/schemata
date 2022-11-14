@@ -7,6 +7,14 @@ defmodule Schemata do
       import Schemata.Queries
       import Ecto.Query
       import Ecto.Changeset
+
+      @behaviour Ecto.Type
+      def type, do: :schemata_virtual_type
+      def cast(_), do: :error
+      def dump(_), do: :error
+      def load(_), do: :error
+      def equal?(_, _), do: false
+      def embed_as(_), do: :dump
     end
   end
 
@@ -319,7 +327,7 @@ defmodule Schemata do
       @doc """
       Accepts data and params, and returns either:
       - an instance of this type with the params applied
-      - an `t:errors/0` map, which maps from field names to error messages, or maps 
+      - an `t:errors/0` map, which maps from field names to error messages, or maps
 
       When called, aliases are expanded. If params contains multiple aliased
       fields which can resolve to the same field, the one which wins is
